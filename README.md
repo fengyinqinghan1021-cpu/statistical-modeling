@@ -63,6 +63,7 @@ jieba 中文分词
 处理后的数据保存为：
 
 news_content_processed.xlsx
+
 🧠 3. LDA 主题模型
 
 使用 sklearn 中的 LatentDirichletAllocation 对旅游评论进行主题建模。
@@ -174,6 +175,8 @@ PyLDAvis
 数据采集
 ChromiumPage
 浏览器自动化
+
+
 📦 安装依赖
 
 建议使用 Python 3.x 环境。
@@ -212,6 +215,9 @@ tourism-data-analysis/
     ├── news_content_processed.xlsx
     ├── data_topic.xlsx
     └── topic.html
+
+
+
 🚀 使用方法
 1. 准备评论数据
 
