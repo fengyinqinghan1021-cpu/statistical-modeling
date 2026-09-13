@@ -1,0 +1,185 @@
+附录一LDA模型代码
+import pandas as pd
+import jieba
+import re
+# 加载EXCEL表
+file_path = r”汇总评论.xlsx”
+df = pd.read_excel(file_path)
+# 自定义函数：对内容进行分词，过滤停用词
+def word_cut(content):
+    content = str(content)
+# 添加自定义词典后的分词（此处假设自定义词典路径为 user_dict.txt，需要预先准备好）
+    user_dict_path = r”user_dict.txt”
+    jieba.load_userdict(user_dict_path)
+# 剔除特殊符号
+    content = re.sub(u'\n|\\r', '', content)  # 剔除换行符和回车符
+    content = re.sub(r'[^\w\s]', '', content)  # 剔除非中文、非字母和非数字的字符
+    content = re.sub(u'[^\u4e00-\u9fa5]', '', content)  # 剔除所有非中文字符
+    # 加载停用词表
+    stopwords = set()
+    with open(r”哈工大停用词表.txt”, 'r', encoding='utf-8') as f:
+        for line in f:
+            stopwords.add(line.strip())
+    # 用jieba分词
+    words = jieba.cut(content)
+    filtered_words = [word for word in words if word not in stopwords]
+return (“ ”).join(filtered_words)
+# 应用函数，对每条评论进行分词，过滤停用词
+df['content_cutted'] = df['content'].apply(word_cut)
+# 查看结果
+print(df[['content', 'content_cutted']].head())
+# 保存结果
+output_path = r”news_content_processed.xlsx”
+df.to_excel(output_path, index=False)
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+# 提取特征词数量
+n_features = 500
+# 将文本数据转换为词频向量矩阵
+tf_vectorizer = CountVectorizer(strip_accents='unicode',            
+                                max_features=n_features,               
+                                stop_words='english',                  
+                                max_df=0.5,                            
+                                min_df=10)                             
+tf = tf_vectorizer.fit_transform(df.content_cutted)
+# 使用了LDA模型来识别文本数据中潜在的主题
+# 定义主题数
+n_topics = 4
+# LDA模型初始化
+lda = LatentDirichletAllocation(n_components=n_topics, max_iter=50,    #
+                                learning_method='batch',               
+                                learning_offset=50,                    
+                                # doc_topic_prior=0.1,                 
+                               # topic_word_prior=0.01,               
+                                random_state=0)   
+# 通过fit方法训练模型，找到最佳的文档-主题和主题-词分布
+lda.fit(tf)    
+# 提取每个主题的前 n_top_words 个最重要的词语
+# 构建函数，从主题模型中提取每个主题的前 n_top_words 个最重要的词语
+def print_top_words(model, feature_names, n_top_words):
+    tword = []
+    # 遍历模型的每个主题
+    for topic_idx, topic in enumerate(model.components_):  # topic_idx 是主题的索引，topic 是一个包含词权重的数组
+        print(“Topic #%d:” % topic_idx)
+        topic_w = “ ”.join([feature_names[i] for i in topic.argsort()[:-n_top_words - 1:-1]])   # 返回基于权重排序后的词语索引数组                                                                                            # 权重最大的词语索引排在前面
+        tword.append(topic_w)
+        print(topic_w)
+    return tword
+# 设置每个主题中要提取的重要词语数量
+n_top_words = 10
+# 获取所有特征词
+tf_feature_names = tf_vectorizer.get_feature_names_out()
+# 调用函数，从主题模型中提取每个主题的前 n_top_words 个最重要的词语
+topic_word = print_top_words(lda, tf_feature_names, n_top_words)
+# 输出每篇文章对应主题
+import numpy as np
+# 将tf矩阵转换为数组，行代表文档，列代表主题，使用 LDA 模型计算文档属于对应主题的概率
+topics = lda.transform(tf)
+# print(topics[0])
+# 确定每个文档最主要的主题
+topic = []
+for t in topics:
+    topic.append(list(t).index(np.max(t)))
+df['topic'] = topic
+print(df.head())
+# 导出为EXCEL表
+df.to_excel(r”data_topic.xlsx”, index=False)
+import pyLDAvis.sklearn
+pic = pyLDAvis.sklearn.prepare(lda, tf, tf_vectorizer)
+pyLDAvis.save_html(pic, r”topic.html”)
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+import pyLDAvis.sklearn
+# 进行可视化准备
+pic = pyLDAvis.sklearn.prepare(lda, tf, tf_vectorizer)
+# 保存可视化结果为 HTML 文件
+pyLDAvis.save_html(pic, r”topic.html”)
+import matplotlib.pyplot as plt
+plexs = []
+scores = []
+n_max_topics = 16
+for i in range(1, n_max_topics):
+    lda = LatentDirichletAllocation(n_components=i, max_iter=50,
+                                    learning_method='batch',
+                                    learning_offset=50,random_state=0)
+    lda.fit(tf)
+    plexs.append(lda.perplexity(tf))  # 计算困惑度
+    scores.append(lda.score(tf))      # 计算似然分数
+# 困惑度可视化
+n_t = 15   # 区间最右侧的值。注意：不能大于n_max_topics
+x = list(range(1, n_t))
+plt.plot(x, plexs[1:n_t])
+plt.xlabel(“number of topics”)
+plt.ylabel(“perplexity”)
+plt.show()
+# 似然分数可视化
+n_t = 15   # 区间最右侧的值。注意：不能大于n_max_topics
+x = list(range(1, n_t))
+plt.plot(x, scores[1:n_t])
+plt.xlabel(“number of topics”)
+plt.ylabel(“score”)
+plt.show()
+
+
+
+
+
+
+附录二部分爬虫代码
+# 打开浏览器
+dp = ChromiumPage()
+dp.get('https://you.ctrip.com/sight/kaifeng165/61455.html')
+# 等待页面加载
+time.sleep(3)
+# 点击切换到评论标签页（可能需要根据实际页面调整选择器）
+try:
+    dp.ele('.commentTabBox .tabItem:last-child').click()
+    time.sleep(5)
+except:
+    print(“可能已经处于评论页或选择器需要更新”)
+#跳转差评页面
+dp.ele('css:.hotTag current span').click()
+for page in range(1,301):
+    print(f'正在采集第{page}页的数据内容')
+    # 获取当前页所有评论元素
+    comments = dp.eles('.commentItem')
+    for comment in comments:
+        try:
+            # 提取评论内容
+            content = comment.ele('.commentDetail').text
+            # 新增：提取评分数据//*[@id=“commentModule”]/div[5]/div[8]/div[2]/div[2]/text()
+            #try:   #//*[@id=“commentModule”]/div[5]/div[3]/div[2]/div[1]/span/comment()[1]
+                # 尝试获取评分元素（根据携程实际页面结构调整选择器）
+            score = comment.ele('.averageScore').text
+            dit = {'评论': content,
+                   '评分': score}
+            csv_writer.writerow(dit)
+            print(dit)
+        except Exception as e:
+            print(f”提取评论时出错: {e}”)
+            continue
+    time.sleep(5)
+    # 尝试点击下一页
+    next_clicked = False
+    for selector in [
+        'xpath://li[contains(@class,”next”)]//a[not(contains(@class,”disabled”))]',
+        'xpath://a[contains(text(),”下一页”)]',
+        'xpath://button[contains(text(),”下一页”)]',
+        'class:ant-pagination-next'
+    ]:
+        try:
+            next_btn = dp.ele(selector, timeout=3)
+            if next_btn:
+                next_btn.click()
+                next_clicked = True
+                break
+        except:
+            continue
+    if not next_clicked:
+        print(“无法找到下一页按钮或已是最后一页”)
+        break
+# 关闭文件
+f.close()
+# 关闭浏览器
+dp.quit()
